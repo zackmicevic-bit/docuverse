@@ -1,0 +1,11 @@
+// DocuVerse — living 3D document universe
+uploadPlugin = {import:upload-plugin}
+superFetch = {import:super-fetch-plugin}
+$meta
+  title = DocuVerse
+  description = A living 3D document universe driven by orbital physics. Gravity equals relevance.
+  tags = graph, 3d, physics, documents, universe, offline
+  icon = https://user.uploads.dev/file/8308056899714995662e29da7c4bbd1e.png
+
+title
+  DocuVerse

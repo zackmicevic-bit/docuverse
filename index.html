@@ -1,0 +1,460 @@
+<style>
+  :root { --bg:#0d1117; --glass:rgba(20,26,36,.72); --line:rgba(120,150,200,.16); --txt:#dbe4f5; --mut:#7d8aa3; --acc:#5f9dff; --sun:#ffce6b; }
+  * { box-sizing:border-box; }
+  body { text-align:left; background:var(--bg); color:var(--txt); font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; margin:0; overflow:hidden; }
+  #app { position:fixed; inset:0; }
+  #uniCv { position:absolute; inset:0; cursor:grab; }
+  .glass { background:var(--glass); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid var(--line); border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.5); }
+  #leftPanel { position:absolute; top:16px; left:16px; width:264px; padding:14px 15px; z-index:10; }
+  #leftPanel h1 { margin:0; font-size:17px; letter-spacing:.14em; }
+  #leftPanel h1 span { color:var(--sun); }
+  #leftPanel .sub { font-size:11px; color:var(--mut); margin:2px 0 12px; letter-spacing:.04em; }
+  #searchInput { width:100%; background:rgba(10,14,20,.7); border:1px solid var(--line); color:var(--txt); border-radius:9px; padding:8px 10px; font-size:13px; outline:none; }
+  #searchInput:focus { border-color:var(--acc); }
+  #searchPop { margin-top:6px; display:flex; flex-direction:column; gap:3px; max-height:220px; overflow:auto; }
+  #searchPop button { background:none; border:0; color:var(--txt); text-align:left; font-size:12.5px; padding:6px 8px; border-radius:7px; cursor:pointer; }
+  #searchPop button:hover { background:rgba(95,157,255,.15); }
+  #searchPop button span { color:var(--mut); font-size:11px; display:block; }
+  #statsEl { font-size:11px; color:var(--mut); margin-top:10px; line-height:1.7; }
+  #statsEl b { color:var(--txt); }
+  .rowbtns { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .btn { background:rgba(95,157,255,.12); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
+  .btn:hover { background:rgba(95,157,255,.25); }
+  /* beat the UA `button:not([disabled]){color:inherit}` rule (0,1,1) so themed
+     buttons actually use their ink instead of inheriting whatever surrounds them */
+  button.btn, button.bl-row, button.ctx-item { color:var(--txt); }
+  /* marquee box-select rectangle: plain 1px div = pixel-crisp edges */
+  #marquee { position:fixed; border:1px solid var(--acc); background:rgba(95,157,255,.12); z-index:5; pointer-events:none; }
+  #marquee[hidden] { display:none; }
+  .sec-sep { height:1px; background:rgba(140,170,220,.35); margin:12px 0 10px; }
+  .sec-label { font-size:10px; letter-spacing:.14em; color:var(--mut); margin:0 0 8px; text-transform:uppercase; }
+  #docPanel { position:absolute; top:16px; right:16px; width:min(380px,90vw); max-height:calc(100vh - 90px); overflow:auto; padding:16px 18px; z-index:10; }
+  /* reader pane stretch arrow — slim ‹ track on the pane's left edge */
+  #docResize { position:absolute; z-index:11; width:20px; height:54px; display:flex; align-items:center; justify-content:center; font-size:14px; color:var(--mut); background:rgba(16,22,32,.85); border:1px solid var(--line); border-radius:10px; cursor:ew-resize; user-select:none; -webkit-user-select:none; touch-action:none; opacity:.55; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); overflow:visible; }
+  #docResize:hover { opacity:1; color:#9cc2ff; border-color:#9cc2ff; }
+  body.light-canvas #docResize { background:rgba(255,255,255,.93); color:#5a6b8c; border-color:rgba(30,45,75,.28); }
+  /* fatter invisible hit zone around the arrow (clicks still land on #docResize) */
+  #docResize::after { content:''; position:absolute; top:-8px; bottom:-8px; left:-20px; right:-6px; cursor:ew-resize; }
+  #docPanel .kicker { font-size:10px; letter-spacing:.14em; color:var(--sun); }
+  #docPanel h2 { margin:4px 0 6px; font-size:19px; }
+  #docMeta { font-size:11px; color:var(--mut); margin-bottom:10px; }
+  #docBody { font-size:13.5px; line-height:1.75; color:#c4cfdf; white-space:pre-wrap; }
+  #docBody .wl { color:#9cc2ff; border-bottom:1px dotted #9cc2ff; cursor:pointer; }
+  #docBody .tag { color:#8fd0a8; cursor:pointer; }
+  .tagpill { display:inline-block; background:rgba(143,208,168,.12); border:1px solid rgba(143,208,168,.35); color:#9fe0b8; border-radius:20px; padding:2px 9px; font-size:11px; margin:0 4px 4px 0; cursor:pointer; }
+  .tagpill.notesbtn { background:rgba(233,195,60,.16); border-color:rgba(233,195,60,.55); color:#f2d24b; font-weight:700; }
+  .notefilter { display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--mut); margin:0 0 10px; }
+  .notefilter label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .notefilter input { accent-color:#e9c33c; }
+  #notePop { position:absolute; top:46px; right:12px; width:min(280px,82vw); z-index:6; padding:10px 12px; }
+  #notePop[hidden] { display:none; }
+  .np-head { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }
+  .np-title { font-size:12px; font-weight:700; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .np-cap { font-size:11px; color:var(--acc); cursor:pointer; border-bottom:1px dotted var(--acc); white-space:nowrap; }
+  .np-cap.danger { color:#ff8f8f; border-color:#ff8f8f; }
+  .np-text { font-size:12.5px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; background:rgba(233,195,60,.08); border:1px solid rgba(233,195,60,.3); border-radius:6px; padding:8px; }
+  .np-area { width:100%; box-sizing:border-box; min-height:64px; font:inherit; font-size:12.5px; resize:vertical; color:#000; background:#fff; }
+  .np-count { font-size:10.5px; color:var(--mut); text-align:right; }
+  #noteEdit { position:fixed; z-index:60; width:250px; padding:10px 12px; }
+  #noteEdit[hidden] { display:none; }
+  #noteEdit h4 { margin:0 0 6px; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #noteEdit textarea { width:100%; box-sizing:border-box; min-height:64px; font:inherit; font-size:12.5px; resize:vertical; color:#000; background:#fff; }
+  .tagpill.auto { background:rgba(122,162,255,.12); border-color:rgba(122,162,255,.4); color:#a8c1ff; }
+  .bl-head { font-size:10px; letter-spacing:.12em; color:var(--mut); margin:14px 0 6px; }
+  .bl-row { display:block; width:100%; text-align:left; background:rgba(95,157,255,.08); border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:7px 10px; margin:5px 0; cursor:pointer; font-size:12.5px; }
+  .bl-row:hover { background:rgba(95,157,255,.18); }
+  .bl-row span { display:block; color:#8fd0a8; font-size:11px; margin-top:2px; }
+  #docShared { position:relative; margin:2px 0 10px; min-height:18px; }
+  #docShared:empty { display:none; }
+  .sg-label { display:inline-block; font-size:10px; letter-spacing:.12em; color:#8fd0a8; border-bottom:1px dotted #8fd0a8; cursor:pointer; padding:2px 0; }
+  .sg-menu { position:absolute; left:0; top:100%; width:min(320px,72vw); max-height:280px; overflow:auto; background:rgba(16,22,32,.97); border:1px solid var(--line); border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,.55); padding:6px; z-index:30; margin-top:6px;
+    visibility:hidden; opacity:0; transform:translateY(-4px);
+    transition:opacity .22s ease, transform .22s ease, visibility 0s linear .45s; }
+  .sg-menu::before { content:''; position:absolute; top:-10px; left:0; right:0; height:10px; }
+  .sg-label:hover ~ .sg-menu, .sg-menu:hover, #docShared.open .sg-menu { visibility:visible; opacity:1; transform:none; transition-delay:0s; }
+  .sg-empty { font-size:12px; color:var(--mut); padding:8px 10px; }
+  .sg-help { display:inline-block; width:15px; height:15px; line-height:13px; text-align:center; font-size:10px; color:var(--mut); border:1px solid var(--line); border-radius:50%; cursor:help; margin-left:6px; vertical-align:1px; }
+  .sg-help:hover, .sg-help:focus { color:#9cc2ff; border-color:#9cc2ff; }
+  .sg-help-pop { visibility:hidden; opacity:0; transform:translateY(-4px); transition:opacity .18s ease, transform .18s ease, visibility 0s linear .6s; position:absolute; left:0; top:100%; width:min(300px,72vw); background:rgba(16,22,32,.97); border:1px solid var(--line); border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,.55); padding:10px 12px; z-index:31; margin-top:6px; font-size:12px; line-height:1.6; color:var(--txt); }
+  .sg-help-pop::before { content:''; position:absolute; top:-10px; left:0; right:0; height:10px; }
+ .sg-help:hover + .sg-help-pop, .sg-help:focus + .sg-help-pop, .sg-help-pop:hover, .sg-help-pop:focus-within, #docShared.help-open .sg-help-pop, .hw.help-open .sg-help-pop { visibility:visible; opacity:1; transform:none; transition-delay:0s; }
+  .hw { position:relative; display:inline-block; }
+  #docMeta { position:relative; }
+  #docMeta > .sg-help-pop { left:0; right:0; width:auto; }
+  #docMeta .sg-help:hover ~ .sg-help-pop, #docMeta .sg-help:focus ~ .sg-help-pop, #docMeta.help-open .sg-help-pop { visibility:visible; opacity:1; transform:none; transition-delay:0s; }
+  .hw.right .sg-help-pop { left:auto; right:-6px; }
+  #hintBar .hw { vertical-align:1px; }
+  #hintBar .sg-help-pop { top:auto; bottom:100%; margin-top:0; margin-bottom:8px; transform:translateY(4px); text-align:left; white-space:normal; }
+  #hintBar .sg-help-pop::before { top:auto; bottom:-10px; }
+  .sg-help-pop .help-text { display:block; }
+  .help-edit-btn { display:none; margin-top:8px; background:rgba(95,157,255,.12); color:var(--txt); border:1px solid var(--line); border-radius:7px; padding:3px 9px; font-size:11.5px; cursor:pointer; }
+  .help-edit-btn:hover { background:rgba(95,157,255,.28); }
+  body.help-can-edit .help-edit-btn { display:inline-block; }
+  #helpEditModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:80; width:min(420px,92vw); padding:18px 20px; }
+  #helpEditModal h3 { margin:0 0 10px; font-size:15px; }
+  #helpEditText { width:100%; min-height:130px; background:rgba(10,14,20,.8); border:1px solid var(--line); color:var(--txt); border-radius:9px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:inherit; resize:vertical; }
+  #helpEditText:focus { outline:none; border-color:var(--acc); }
+  #helpEditHint { font-size:11px; color:var(--mut); margin-top:8px; line-height:1.5; }
+  #hintBar { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); font-size:11.5px; color:#aebdd6; background:rgba(10,15,24,.85); border:1px solid rgba(140,170,220,.38); padding:6px 14px 5px; border-radius:14px; z-index:10; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 28px rgba(0,0,0,.5); display:flex; flex-direction:column; align-items:center; gap:1px; max-width:94vw; }
+  #hintBar .hb-btns { display:flex; align-items:center; gap:6px; }
+  #hintBar .hb-sep { color:var(--mut); opacity:.55; font-size:11px; user-select:none; -webkit-user-select:none; }
+  #hintBar .hb-tips { font-size:10.5px; white-space:nowrap; }
+  #isoBtn, #lensBtn, #autoBtn, #simpleOrbBtn, #simpleOrb2Btn { background:rgba(95,157,255,.22); color:#e6edfa; border:1px solid rgba(140,170,220,.45); border-radius:12px; padding:2px 10px; font-size:11px; cursor:pointer; white-space:nowrap; }
+  #isoBtn:hover, #lensBtn:hover, #autoBtn:hover, #simpleOrbBtn, #simpleOrb2Btn:hover { background:rgba(95,157,255,.38); }
+  #isoBtn.on, #lensBtn.on, #autoBtn.on, #simpleOrbBtn, #simpleOrb2Btn.on { background:rgba(95,157,255,.55); color:#fff; border-color:var(--acc); }
+  body.light-canvas #hintBar { color:#233044; background:rgba(255,255,255,.93); border-color:rgba(30,45,75,.28); box-shadow:0 8px 28px rgba(30,45,75,.2); }
+  body.light-canvas #isoBtn, body.light-canvas #lensBtn, body.light-canvas #autoBtn, body.light-canvas #simpleOrbBtn, body.light-canvas #simpleOrb2Btn { background:rgba(35,80,180,.12); color:#1a2a4a; border-color:rgba(35,80,180,.4); }
+  body.light-canvas #isoBtn:hover, body.light-canvas #lensBtn:hover, body.light-canvas #autoBtn:hover, body.light-canvas #simpleOrbBtn, body.light-canvas #simpleOrb2Btn:hover { background:rgba(35,80,180,.24); }
+  body.light-canvas #isoBtn.on, body.light-canvas #lensBtn.on, body.light-canvas #autoBtn.on, body.light-canvas #simpleOrbBtn, body.light-canvas #simpleOrb2Btn.on { background:rgba(35,80,180,.88); color:#fff; border-color:rgba(35,80,180,.95); }
+  body.dropping #app { outline:2px dashed var(--acc); outline-offset:-10px; }
+  body.dropping #hintBar { color:var(--txt); border-color:var(--acc); }
+  #toastEl { position:fixed; bottom:78px; left:50%; transform:translateX(-50%) translateY(10px); background:#1c2940; border:1px solid var(--line); color:#fff; font-size:13px; padding:9px 16px; border-radius:10px; opacity:0; transition:.25s; z-index:50; pointer-events:none; }
+  #toastEl.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .pickhide { position:fixed; left:8px; top:8px; width:4px; height:4px; opacity:0.01; pointer-events:none; }
+  .rotrow { display:flex; align-items:center; gap:8px; margin-top:8px; min-width:0; }
+  .rotrow .btn { white-space:nowrap; flex-shrink:0; }
+  .rotrow input[type="range"] { flex:1 1 auto; min-width:0; width:0; accent-color:var(--acc); cursor:pointer; }
+  .rotrow span[id$="Mul"] { font-size:11px; color:var(--mut); min-width:38px; text-align:right; flex-shrink:0; }
+  #leftPanel, #docPanel, #cloudBox { background:rgba(20,26,32,calc(.72 * var(--paneAlpha, 1))); }
+  /* crisp glass overlay: layered sheen + blur painted as the pane background itself,
+     so text, toggles, thumbnails and filenames always render in front of it */
+  #leftPanel.glass, #docPanel.glass, #cloudBox.glass {
+    background:
+      linear-gradient(115deg, rgba(255,255,255,calc(.14 * var(--paneAlpha,1))), rgba(255,255,255,calc(.03 * var(--paneAlpha,1))) 30%, rgba(255,255,255,0) 48%, rgba(255,255,255,calc(.05 * var(--paneAlpha,1))) 74%, rgba(255,255,255,calc(.10 * var(--paneAlpha,1)))),
+      linear-gradient(180deg, rgba(255,255,255,calc(.06 * var(--paneAlpha,1))), rgba(255,255,255,0) 26%),
+      rgba(20,26,32,calc(.72 * var(--paneAlpha, 1)));
+    backdrop-filter:blur(18px) saturate(1.35);
+    -webkit-backdrop-filter:blur(18px) saturate(1.35);
+    box-shadow:0 18px 50px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.22);
+  }
+  /* glass disengaged via the per-pane dot: flat background, no blur, no sheen */
+  #leftPanel.noglass, #docPanel.noglass, #cloudBox.noglass {
+    background:rgba(20,26,32,calc(.72 * var(--paneAlpha, 1)));
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+  /* white-canvas sharpness: dark glass washes out over a bright backdrop, so
+     deepen the base, mute the sheen, harden the edge and shadow. Only matches
+     body.light-canvas — the black-canvas look above is untouched. */
+  body.light-canvas #leftPanel.glass, body.light-canvas #docPanel.glass, body.light-canvas #cloudBox.glass {
+    background:
+      linear-gradient(115deg, rgba(255,255,255,calc(.05 * var(--paneAlpha,1))), rgba(255,255,255,calc(.01 * var(--paneAlpha,1))) 30%, rgba(255,255,255,0) 48%, rgba(255,255,255,calc(.02 * var(--paneAlpha,1))) 74%, rgba(255,255,255,calc(.04 * var(--paneAlpha,1)))),
+      linear-gradient(180deg, rgba(255,255,255,calc(.03 * var(--paneAlpha,1))), rgba(255,255,255,0) 26%),
+      rgba(13,17,24,calc(.88 * var(--paneAlpha, 1) + .08));
+    border-color:rgba(10,15,25,.65);
+    box-shadow:0 18px 50px rgba(20,30,50,.45), inset 0 1px 0 rgba(255,255,255,.28);
+  }
+  body.light-canvas #leftPanel.noglass, body.light-canvas #docPanel.noglass, body.light-canvas #cloudBox.noglass {
+    background:rgba(13,17,24,calc(.88 * var(--paneAlpha, 1) + .08));
+    border-color:rgba(10,15,25,.65);
+    box-shadow:0 18px 50px rgba(20,30,50,.45);
+  }
+  /* round glossy toggle dot — top-right corner of each pane */
+  .glassDot { position:absolute; z-index:6; width:18px; height:18px; border-radius:50%; padding:0; cursor:pointer;
+    border:1px solid rgba(255,255,255,.55);
+    background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.95), rgba(255,255,255,.28) 38%, rgba(160,200,255,.28) 62%, rgba(90,140,220,.5));
+    box-shadow:0 1px 4px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.8);
+  }
+  .glassDot:hover { transform:scale(1.18); }
+  .glassDot:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  #leftPanel .glassDot, #docPanel .glassDot { top:11px; right:40px; }
+  #cloudBox .glassDot { top:10px; right:10px; }
+  /* dimmed dot = glass currently off for that pane */
+  #leftPanel.noglass .glassDot, #docPanel.noglass .glassDot, #cloudBox.noglass .glassDot {
+    background:rgba(120,140,170,.22); border-color:rgba(140,160,190,.4); box-shadow:none;
+  }
+  /* hover explainer caption */
+  .glassDot .glassTip { position:absolute; top:calc(100% + 9px); right:-8px; width:196px; padding:9px 11px;
+    font-size:11.5px; line-height:1.55; color:var(--txt); text-align:left; font-weight:400;
+    background:rgba(16,22,32,.96); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 14px 40px rgba(0,0,0,.6); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    visibility:hidden; opacity:0; transform:translateY(-4px); pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease, visibility 0s linear .4s; }
+  .glassDot:hover .glassTip, .glassDot:focus-visible .glassTip { visibility:visible; opacity:1; transform:none; transition-delay:0s; }
+  /* collapsed panes hide everything but the arrow — dot included */
+  #leftPanel.collapsed .glassDot, #docPanel.collapsed .glassDot { display:none; }
+  /* tether tint palette: 12 swatches in two rows of six */
+  #tePal { display:grid; grid-template-columns:repeat(12, 1fr); gap:4px; margin:8px 2px 2px; }
+  .tesw { aspect-ratio:1/1; border-radius:6px; border:1px solid rgba(255,255,255,.28); background:var(--sw); cursor:pointer; padding:0; min-width:0; }
+  .tesw:hover { transform:scale(1.15); }
+  .tesw:focus-visible { outline:2px solid #fff; outline-offset:1px; }
+  .tesw.on { outline:2px solid #fff; outline-offset:1px; box-shadow:0 0 8px var(--sw); }
+  body.light-canvas .tesw { border-color:rgba(30,45,75,.35); }
+  body.light-canvas .tesw.on { outline-color:#1a2a4a; }
+  /* canvas backdrop picker: 12 photo thumbs in one row */
+  #bgPal { display:grid; grid-template-columns:repeat(12, 1fr); gap:4px; margin:8px 2px 2px; }
+  .bgsw { aspect-ratio:1/1; border-radius:6px; border:1px solid rgba(255,255,255,.28); background-size:cover; background-position:center; background-color:#10151d; cursor:pointer; padding:0; min-width:0; }
+  .bgsw:hover { transform:scale(1.15); }
+  .bgsw:focus-visible { outline:2px solid #fff; outline-offset:1px; }
+  .bgsw.on { outline:2px solid #fff; outline-offset:1px; box-shadow:0 0 8px rgba(255,255,255,.35); }
+  body.light-canvas .bgsw { border-color:rgba(30,45,75,.35); }
+  body.light-canvas .bgsw.on { outline-color:#1a2a4a; }
+  body.light-panes #leftPanel, body.light-panes #docPanel, body.light-panes #cloudBox { --txt:#22304a; --mut:#5a6b8c; --acc:#2450b4; --line:rgba(30,45,75,.3); --sun:#8a6a1f; color:var(--txt); }
+  body.light-panes #searchInput { background:rgba(255,255,255,.92); }
+  body.light-panes #docBody { color:#2f3c55; }
+  body.light-panes #docBody .wl { color:#1e56c8; }
+  body.light-panes #docBody .tag, body.light-panes .sg-label, body.light-panes .bl-row span { color:#237a4c; border-color:#237a4c; }
+  body.light-panes .tagpill { color:#1f7a48; border-color:rgba(31,122,72,.5); background:rgba(31,122,72,.1); }
+  body.light-panes .tagpill.auto { color:#2b4fc4; border-color:rgba(43,79,196,.45); background:rgba(43,79,196,.08); }
+  body.light-panes .tagpill.notesbtn { color:#8a6a1f; border-color:rgba(138,106,31,.55); background:rgba(233,195,60,.18); }
+  body.light-panes #cbLast a { color:#1e56c8; }
+  /* permanently-dark floating surfaces keep light ink no matter the pane theme
+     (their backgrounds never change, so their text must never follow it) */
+  .glass, #tabBar, .sg-help-pop, .sg-menu { --txt:#dbe4f5; --mut:#7d8aa3; --line:rgba(120,150,200,.16); --acc:#5f9dff; --sun:#ffce6b; }
+  #ctxMenu { position:fixed; z-index:60; min-width:220px; padding:6px; }
+  #ctxMenu .ctx-head { font-size:11px; color:var(--sun); padding:6px 10px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  #ctxMenu .ctx-item { display:block; width:100%; text-align:left; background:none; border:0; color:var(--txt); font-size:13px; padding:7px 10px; border-radius:7px; cursor:pointer; }
+  #ctxMenu .ctx-item:hover { background:rgba(95,157,255,.18); }
+  #ctxMenu .ctx-item.danger { color:#ff9d9d; }
+  #ctxMenu .ctx-item.danger:hover { background:rgba(255,120,120,.15); }
+  #ctxMenu hr { border:0; border-top:1px solid var(--line); margin:5px 4px; }
+  #ctxMenu .ctx-note { font-size:11px; color:var(--mut); padding:2px 10px 6px; line-height:1.5; max-width:260px; }
+  #ctxMenu .ctx-sub { font-size:10px; letter-spacing:.12em; color:var(--mut); text-transform:uppercase; padding:8px 10px 2px; }
+  #ctxMenu .ctx-picklist { display:flex; flex-direction:column; gap:2px; max-height:220px; overflow:auto; padding:0 2px 4px; }
+  #ctxMenu .ctx-pick { overflow-wrap:anywhere; }
+  #ctxMenu .ctx-pick.on { color:#cfe0ff; background:rgba(95,157,255,.14); }
+  .tabbar-label { display:block; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--mut); white-space:nowrap; text-align:center; padding:0; }
+  .tabbar-row { display:flex; gap:6px; align-items:center; justify-content:flex-start; max-width:92vw; overflow-x:auto; padding:1px; }
+  #tabBar { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:20; display:flex; flex-direction:column; gap:1px; align-items:stretch; max-width:92vw; background:rgba(8,12,18,.92); border:1px solid rgba(140,170,220,.25); border-radius:14px; padding:5px 8px 6px; box-shadow:0 18px 50px rgba(0,0,0,.6); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  /* associated (shared) tabs wear the shared accent color */
+  #tabBar .tab { background:rgba(95,157,255,.10); border:1px solid rgba(95,157,255,.45); color:#cfe0ff; font-size:12px; padding:5px 10px; border-radius:9px; cursor:pointer; white-space:nowrap; }
+  #tabBar .tab:hover { color:#fff; background:rgba(95,157,255,.22); border-color:var(--acc); }
+  #tabBar .tab.active { color:#fff; background:rgba(95,157,255,.32); border-color:var(--acc); box-shadow:0 0 10px rgba(95,157,255,.35); }
+  /* isolated tabs are unassociated: dim dashed grey instead of the shared accent */
+  #tabBar .tab.iso { background:none; border:1px dashed rgba(125,138,163,.55); color:var(--mut); box-shadow:none; }
+  #tabBar .tab.iso:hover { color:var(--txt); background:rgba(125,138,163,.12); border-color:var(--mut); }
+  #tabBar .tab.iso.active { border-color:var(--mut); color:var(--txt); background:rgba(125,138,163,.16); }
+  #tabBar .tab.iso.tinted { border-style:solid; border-color:var(--tabc); color:#eef2fa; background:color-mix(in srgb, var(--tabc) 16%, transparent); box-shadow:0 0 10px color-mix(in srgb, var(--tabc) 45%, transparent); }
+  #tabBar .tab.iso.tinted:hover { background:color-mix(in srgb, var(--tabc) 28%, transparent); border-color:var(--tabc); color:#fff; }
+  #tabBar .tab.iso.tinted.active { background:color-mix(in srgb, var(--tabc) 34%, transparent); border-color:var(--tabc); color:#fff; box-shadow:0 0 12px color-mix(in srgb, var(--tabc) 60%, transparent); }
+  #tabBar .tabadd { color:var(--sun); font-weight:700; font-size:14px; }
+  #tabBar .tabx { margin-left:7px; color:var(--mut); font-size:12px; padding:0 3px; border-radius:5px; }
+  #tabBar .tabx:hover { color:#ff9d9d; background:rgba(255,120,120,.18); }
+  .collapseBtn { position:absolute; top:8px; right:8px; z-index:5; width:24px; height:24px; padding:0; line-height:1; font-size:12px; background:rgba(95,157,255,.12); color:var(--txt); border:1px solid var(--line); border-radius:7px; cursor:pointer; }
+  .collapseBtn:hover { background:rgba(95,157,255,.28); }
+  #leftPanel h1 { padding-right:64px; }
+  #docPanel .kicker { padding-right:64px; }
+  #cloudBox .cb-head { padding-right:34px; }
+  #leftPanel.collapsed, #docPanel.collapsed { padding:6px 8px; width:auto; min-width:0; }
+  #leftPanel.collapsed > :not(.collapseBtn), #docPanel.collapsed > :not(.collapseBtn) { display:none; }
+  #leftPanel.collapsed .collapseBtn, #docPanel.collapsed .collapseBtn { position:static; }
+  #propsModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:70; width:min(360px,90vw); padding:18px 20px; }
+  #propsModal h3 { margin:0 0 10px; font-size:16px; overflow-wrap:anywhere; }
+  #propsModal .pr { display:flex; justify-content:space-between; gap:12px; font-size:13px; padding:5px 0; border-bottom:1px solid var(--line); }
+  #propsModal .pr span:first-child { color:var(--mut); }
+  #propsModal .pr span:last-child { text-align:right; overflow-wrap:anywhere; }
+  #confirmModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:90; width:min(380px,92vw); padding:18px 20px; }
+  #confirmModal h3 { margin:0 0 8px; font-size:16px; overflow-wrap:anywhere; }
+  #confirmMsg { font-size:13px; line-height:1.6; color:var(--txt); overflow-wrap:anywhere; }
+  #confirmModal .rowbtns { margin-top:14px; }
+  #pickModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:90; width:min(420px,94vw); max-height:84vh; display:flex; flex-direction:column; padding:18px 20px; }
+  #pickModal[hidden] { display:none; }
+  #pickModal h3 { margin:0 0 4px; font-size:16px; overflow-wrap:anywhere; }
+  #pickSub { font-size:12px; color:var(--mut); margin-bottom:10px; line-height:1.5; }
+  #pickList { overflow:auto; display:flex; flex-direction:column; gap:4px; margin-bottom:6px; }
+  #pickList label { display:flex; gap:9px; align-items:flex-start; background:rgba(95,157,255,.07); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px; cursor:pointer; }
+  #pickList label:hover { background:rgba(95,157,255,.16); }
+  #pickList input { margin-top:2px; accent-color:var(--acc); flex-shrink:0; }
+  #pickList .pk-t { display:block; font-size:11px; color:#8fd0a8; margin-top:2px; }
+  #pickList .pk-sun { color:var(--sun); }
+  .btn.danger { background:rgba(255,120,120,.14); border-color:rgba(255,120,120,.45); }
+  .btn.danger:hover { background:rgba(255,120,120,.3); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  #docActions { margin:10px 0 2px; }
+  #docActions[hidden] { display:none; }
+  #cloudBox { position:absolute; left:16px; bottom:16px; width:300px; padding:12px 14px; z-index:10; }
+  #cloudBox .cb-head { font-size:11px; letter-spacing:.12em; color:var(--acc); display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  #cloudBox .cb-head span:last-child { color:var(--mut); letter-spacing:0; font-size:10.5px; }
+  #cloudBox .rowbtns { margin-top:8px; }
+  #cbLast { font-size:11px; color:var(--mut); margin-top:8px; line-height:1.6; overflow-wrap:anywhere; }
+  #cbLast a { color:#9cc2ff; }
+  #devBox { position:absolute; right:16px; bottom:16px; width:260px; padding:12px 14px; z-index:10; }
+  #devBox[hidden] { display:none; }
+  #devBox .cb-head { font-size:11px; letter-spacing:.12em; color:var(--acc); display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  #devBox .cb-head button { background:none; border:0; color:var(--mut); text-decoration:underline; cursor:pointer; font-size:10.5px; padding:0; }
+  #devBox .cb-head button:hover { color:#ff9d9d; }
+  #devBox .rowbtns { margin-top:8px; }
+  #devBox a.btn { text-decoration:none; display:inline-block; }
+  #devBox a.btn.off { opacity:.45; }
+  #devNote { font-size:11px; color:var(--mut); margin-top:8px; line-height:1.6; overflow-wrap:anywhere; }
+  #devNote:empty { display:none; }
+  #devEdit { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  #devEdit[hidden] { display:none; }
+  #devEdit label { font-size:10.5px; color:var(--mut); display:flex; flex-direction:column; gap:3px; }
+  #devEdit input { background:rgba(10,14,20,.7); border:1px solid var(--line); color:var(--txt); border-radius:7px; padding:6px 8px; font-size:12px; outline:none; width:100%; box-sizing:border-box; }
+  #devEdit input:focus { border-color:var(--acc); }
+ @media (max-width:760px) { #hintBar { display:none; } #docResize { display:none; } #cloudBox { left:8px; right:8px; bottom:8px; width:auto; } #devBox { left:auto; right:8px; bottom:auto; top:60px; width:min(260px,72vw); } #docPanel { display:none; } #docPanel.open { display:block; } #leftPanel { width:210px; } }
+</style>
+
+<div id="app">
+  <canvas id="uniCv"></canvas>
+  <div id="tabBar"></div>
+  <div id="leftPanel" class="glass">
+    <button class="collapseBtn" data-collapse="leftPanel" title="Collapse panel">▲</button>
+    <button class="glassDot" data-glaze="leftPanel" aria-label="Toggle the frosted-glass background of this pane"><span class="glassTip">Polished-glass finish — click to switch this pane to a flat background, click again to bring the glass back. Text and controls always stay on top.</span></button>
+    <h1>DOCU<span>VERSE</span></h1>
+    <div class="sub">living document universe</div>
+    <div class="notefilter" title="Which sticky-note squares to show next to body labels"><span>View notes:</span><label>All <input type="checkbox" id="notesViewAll" checked></label><span>/</span><label>Active body <input type="checkbox" id="notesViewSun" checked></label></div>
+    <input id="searchInput" placeholder="Search bodies… (/ to focus)" autocomplete="off">
+    <div id="searchPop"></div>
+    <div id="statsEl"><b id="stBodies">–</b> bodies · <b id="stLinks">–</b> tethers<br>system energy <b id="stKe">–</b> <span class="hw"><span class="sg-help" data-sghelp tabindex="0">?</span><div class="sg-help-pop" role="note" data-help-pop="energy"><span class="help-text" data-help-text="energy">Total motion in the document universe. High "system energy" numbers mean bodies are flying fast — especially if more files ('bodies') are being added — and it settles as correlational orbits stabilize.</span><button class="help-edit-btn" data-help-edit="energy" title="Edit this explanation">✎ edit</button></div></span> · rim <b id="stRim">–</b>ly <span class="hw"><span class="sg-help" data-sghelp tabindex="0">?</span><div class="sg-help-pop" role="note" data-help-pop="rim"><span class="help-text" data-help-text="rim">The edge of the visualized document universe. Files ('bodies') drifting past it are loners with no links — a single reference can pull them back in and connect them.</span><button class="help-edit-btn" data-help-edit="rim" title="Edit this explanation">✎ edit</button></div></span></div>
+    <div id="intakeLog" title="Last import result" style="font-size:11px;color:var(--mut);margin-top:8px;line-height:1.5;overflow-wrap:anywhere;"></div>
+    <div class="rowbtns">
+      <button class="btn" id="folderBtn" title="Select a local folder (.md/.txt/.csv/.pdf/.docx/.xlsx/.pptx)">⤓ Folder</button>
+      <button class="btn" id="fileBtn" title="Import files">⤓ Files</button>
+    </div>
+    <div class="sec-sep"></div>
+    <div class="sec-label">Personalization</div>
+    <div class="rotrow" title="Universe speed — Pause freezes everything, slider goes down to full stop for slow-motion">
+      <button class="btn" id="rotBtn">⏸ Pause</button>
+      <input type="range" id="rotSpeed" min="0" max="100" step="1" value="78" title="Universe speed (0 = stopped)">
+      <span id="rotMul">1.0×</span>
+    </div>
+    <div class="rotrow" title="Photo-texture overlay on bodies — slider sets opacity, button toggles on/off">
+      <button class="btn" id="ovBtn">&#127912; Overlay</button>
+      <input type="range" id="ovAlpha" min="0" max="100" step="1" value="60" title="Overlay opacity (0 = off)">
+      <span id="ovMul">60%</span>
+    </div>
+    <div class="rotrow" title="File-name labels under bodies — slider sets size, far left hides them, button toggles">
+      <button class="btn" id="lbBtn">&#127991; Labels</button>
+      <input type="range" id="lbSize" min="0" max="150" step="1" value="100" title="Label size (0 = hidden)">
+      <span id="lbMul">100%</span>
+    </div>
+    <div class="rotrow" title="Canvas background shade — far left white, far right black (button flips extremes)">
+      <button class="btn" id="bgBtn">&#9681; Shade</button>
+      <input type="range" id="bgShade" min="0" max="100" step="1" value="100" title="Background shade (0 = white, 100 = black)">
+      <span id="bgMul">100%</span>
+    </div>
+    <div class="rotrow" title="Photo backdrop behind the universe — slider sets opacity, button toggles on/off (bodies and tethers always stay in front)">
+      <button class="btn" id="bdBtn">&#127748; Backdrop</button>
+      <input type="range" id="bdAlpha" min="0" max="100" step="1" value="55" title="Backdrop opacity (0 = off)">
+      <span id="bdMul">55%</span>
+    </div>
+    <div id="bgPal" title="Canvas backdrop — pick a photo texture (click the active one again to clear)">
+      <button class="bgsw" data-bg="bg01.jpg" style="background-image:url(src/backdrops/bg01.jpg)" title="swirl"></button>
+      <button class="bgsw" data-bg="bg02.jpg" style="background-image:url(src/backdrops/bg02.jpg)" title="rays"></button>
+      <button class="bgsw" data-bg="bg03.jpg" style="background-image:url(src/backdrops/bg03.jpg)" title="weave"></button>
+      <button class="bgsw" data-bg="bg04.jpg" style="background-image:url(src/backdrops/bg04.jpg)" title="splash"></button>
+      <button class="bgsw" data-bg="bg05.jpg" style="background-image:url(src/backdrops/bg05.jpg)" title="dunes"></button>
+      <button class="bgsw" data-bg="bg06.jpg" style="background-image:url(src/backdrops/bg06.jpg)" title="streak"></button>
+      <button class="bgsw" data-bg="bg07.jpg" style="background-image:url(src/backdrops/bg07.jpg)" title="stone"></button>
+      <button class="bgsw" data-bg="bg08.jpg" style="background-image:url(src/backdrops/bg08.jpg)" title="sand"></button>
+      <button class="bgsw" data-bg="bg09.jpg" style="background-image:url(src/backdrops/bg09.jpg)" title="plaster"></button>
+      <button class="bgsw" data-bg="bg10.jpg" style="background-image:url(src/backdrops/bg10.jpg)" title="clay"></button>
+      <button class="bgsw" data-bg="bg11.jpg" style="background-image:url(src/backdrops/bg11.jpg)" title="granite"></button>
+      <button class="bgsw" data-bg="bg12.jpg" style="background-image:url(src/backdrops/bg12.jpg)" title="relief"></button>
+    </div>
+    <div class="rotrow" title="Glow radius around bodies — far left removes it, middle is current, far right doubles it">
+      <button class="btn" id="glBtn">&#10024; Glow</button>
+      <input type="range" id="glSize" min="0" max="100" step="1" value="50" title="Glow radius (0 = none, 50 = current, 100 = double)">
+      <span id="glMul">100%</span>
+    </div>
+    <div class="rotrow" title="Tether thickness — far left hides them, middle is current, far right doubles them">
+      <button class="btn" id="teBtn">&#8646; Tether</button>
+      <input type="range" id="teSize" min="0" max="100" step="1" value="50" title="Tether thickness (0 = hidden, 50 = current, 100 = double)">
+      <span id="teMul">100%</span>
+    </div>
+    <div id="tePal" title="Tether color — tint for all tethers (the sun's shared-ground links stay gold)">
+      <button class="tesw" data-color="#e5484d" style="--sw:#e5484d" title="red"></button>
+      <button class="tesw" data-color="#f76b15" style="--sw:#f76b15" title="orange"></button>
+      <button class="tesw" data-color="#ffb224" style="--sw:#ffb224" title="amber"></button>
+      <button class="tesw" data-color="#000000" style="--sw:#000000" title="black"></button>
+      <button class="tesw" data-color="#46a758" style="--sw:#46a758" title="green"></button>
+      <button class="tesw" data-color="#12a594" style="--sw:#12a594" title="teal"></button>
+      <button class="tesw" data-color="#00a2c7" style="--sw:#00a2c7" title="cyan"></button>
+      <button class="tesw" data-color="#82aaff" style="--sw:#82aaff" title="sky (default)"></button>
+      <button class="tesw" data-color="#3e63dd" style="--sw:#3e63dd" title="blue"></button>
+      <button class="tesw" data-color="#8e4ec6" style="--sw:#8e4ec6" title="violet"></button>
+      <button class="tesw" data-color="#d6409f" style="--sw:#d6409f" title="pink"></button>
+      <button class="tesw" data-color="#e8eef7" style="--sw:#e8eef7" title="white"></button>
+    </div>
+    <div class="rotrow" title="Pane backgrounds — far left clears the Docuverse / Active body / Cloud panes to just text and controls, far right is the current glass (button toggles)">
+      <button class="btn" id="paBtn">&#9703; Panes</button>
+      <input type="range" id="paSize" min="0" max="100" step="1" value="100" title="Pane background opacity (0 = clear, 100 = current glass)">
+      <span id="paMul">100%</span>
+    </div>
+    <input type="file" id="fileInput" class="pickhide" multiple accept=".md,.markdown,.txt,.csv,.pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt">
+    <input type="file" id="folderInput" class="pickhide" webkitdirectory>
+  </div>
+  <div id="docPanel" class="glass">
+    <button class="collapseBtn" data-collapse="docPanel" title="Collapse panel">▲</button>
+    <button class="glassDot" data-glaze="docPanel" aria-label="Toggle the frosted-glass background of this pane"><span class="glassTip">Polished-glass finish — click to switch this pane to a flat background, click again to bring the glass back. Text and controls always stay on top.</span></button>
+    <div class="kicker">◉ ACTIVE BODY — GRAVITATIONAL CENTER</div>
+    <div class="rowbtns" id="docActions">
+      <button class="btn" id="docRemoveBtn" title="Remove the active body from this canvas only (copies on other canvases survive)">✕ Remove from canvas</button>
+      <button class="btn danger" id="docDeleteBtn" title="Delete the active body from every canvas (cannot be undone)">✕ Delete everywhere</button>
+    </div>
+    <div id="docShared"></div>
+    <h2 id="docTitle"></h2>
+    <div id="docMeta"></div>
+    <div id="docTags"></div>
+    <div id="docBody"></div>
+    <div id="docLinks"></div>
+    <div id="notePop" class="glass" hidden></div>
+  </div>
+  <div id="docResize" title="Drag to resize the reader pane — double-click to reset">‹</div>
+  <div id="hintBar"><div class="hb-btns"><button id="isoBtn" title="Show/hide the tether lines between bodies (bodies always stay)">◉ Tethers</button><span class="hb-sep">|</span><button id="lensBtn" title="Thematic lens: recompose the universe from shared themes + tags only (same physics, same bodies)">◉ Thematic</button><span class="hw right"><span class="sg-help" data-sghelp tabindex="0">?</span><div class="sg-help-pop" role="note" data-help-pop="thematic"><span class="help-text" data-help-text="thematic">Thematic lens: rebuilds the universe from shared themes + tags only — one body per theme, sized by its weight. Click a member to drill down; toggle Thematic off to restore the full universe.</span><button class="help-edit-btn" data-help-edit="thematic" title="Edit this explanation">✎ edit</button></div></span><span class="hb-sep">|</span><button id="autoBtn" title="Auto-distribute: pin bodies in a fit-to-canvas orb (orbital motion overridden while on)">◉ Distribute</button><span class="hb-sep">|</span><button id="simpleOrbBtn" title="Simple Orb: flat white discs with a thin black outline (photo + glow overlays off)">○ Simple Orb</button><span class="hb-sep">|</span><button id="simpleOrb2Btn" title="Simple Orb 2: original blue orbs with the photo overlays stripped">○ Simple Orb 2</button></div><div class="hb-tips"><span>drag empty space to pan &middot; drag a body to rotate &middot; wheel to zoom &middot; click a body for sun &middot; click empty space to release &middot; double-click to refit &middot; shift-drag to box-select &middot; right-click to delete</span></div></div>
+  <div id="cloudBox" class="glass">
+    <button class="glassDot" data-glaze="cloudBox" aria-label="Toggle the frosted-glass background of this pane"><span class="glassTip">Polished-glass finish — click to switch this pane to a flat background, click again to bring the glass back. Text and controls always stay on top.</span></button>
+    <div class="cb-head"><span>☁ CLOUD BACKUP</span><span id="cbStatus">no pushes yet</span></div>
+    <div class="rowbtns">
+      <button class="btn" id="pushBtn" title="Upload a full snapshot (code + documents + settings) to the cloud">⤒ Push backup</button>
+      <button class="btn" id="dlMasterBtn" title="Download the DocuVerse master settings/data file to your computer">⤓ Master file</button>
+      <button class="btn" id="loadBtn" title="Load a DocuVerse master file back into the universe (replaces everything)">Load…</button>
+      <button class="btn" id="mergeBtn" title="Add a DocuVerse master file's documents into the current canvas (keeps what is already open)">Merge…</button>
+    </div>
+    <div id="cbLast"></div>
+    <input type="file" id="loadInput" class="pickhide" accept=".json,application/json">
+    <input type="file" id="mergeInput" class="pickhide" accept=".json,application/json">
+  </div>
+  <div id="devBox" class="glass" hidden>
+    <div class="cb-head"><span>◇ DEV BUILDS</span><button id="devHideBtn" title="Hide the dev pane on this machine (reopen with ?dev=1)">hide</button></div>
+    <div class="rowbtns">
+      <a class="btn" id="devWin" target="_blank" rel="noopener">⤓ <span id="devWinLabel">Windows · .exe / .msi</span></a>
+      <a class="btn" id="devMac" target="_blank" rel="noopener">⤓ <span id="devMacLabel">Mac · .dmg</span></a>
+    </div>
+    <div id="devNote"></div>
+    <div class="rowbtns"><button class="btn" id="devEditBtn" title="Paste the installer URLs (stored on this machine only)">edit links</button></div>
+    <div id="devEdit" hidden>
+      <label>Windows URL<input id="devWinUrl" placeholder="https://…/DocuVerse-setup.exe" autocomplete="off"></label>
+      <label>Windows label<input id="devWinTitle" placeholder="Windows · v1.2 .exe" autocomplete="off"></label>
+      <label>Mac URL<input id="devMacUrl" placeholder="https://…/DocuVerse.dmg" autocomplete="off"></label>
+      <label>Mac label<input id="devMacTitle" placeholder="Mac · v1.2 universal" autocomplete="off"></label>
+      <label>Note<input id="devNoteInput" placeholder="e.g. v1.2 signed builds" autocomplete="off"></label>
+      <div class="rowbtns"><button class="btn" id="devSaveBtn">Save</button></div>
+    </div>
+  </div>
+</div>
+<div id="toastEl"></div>
+<div id="ctxMenu" class="glass" hidden></div>
+<div id="propsModal" class="glass" hidden>
+  <h3 id="propsTitle"></h3>
+  <div id="propsBody"></div>
+  <div class="rowbtns"><button class="btn" id="propsClose">Close</button></div>
+</div>
+<div id="confirmModal" class="glass" hidden>
+  <h3 id="confirmTitle">Are you sure?</h3>
+  <div id="confirmMsg"></div>
+  <div class="rowbtns"><button class="btn danger" id="confirmOk">Confirm</button><button class="btn" id="confirmCancel">Cancel</button></div>
+</div>
+<div id="pickModal" class="glass" hidden>
+  <h3 id="pickTitle">Copy constellation</h3>
+  <div id="pickSub"></div>
+  <div id="pickList"></div>
+  <div class="rowbtns"><button class="btn" id="pickOk">Copy</button><button class="btn" id="pickCancel">Cancel</button></div>
+</div>
+<div id="helpEditModal" class="glass" hidden>
+  <h3 id="helpEditTitle">Edit explanation</h3>
+  <textarea id="helpEditText" rows="6"></textarea>
+  <div class="rowbtns"><button class="btn" id="helpSaveBtn">Save</button><button class="btn" id="helpResetBtn" title="Restore the original wording">Reset to default</button><button class="btn" id="helpCancelBtn">Cancel</button></div>
+  <div id="helpEditHint">Saved on this machine + included in cloud backups / master files.</div>
+</div>
+
+<div id="noteEdit" class="glass" hidden>
+  <h4 id="noteEditTitle">Sticky note</h4>
+  <textarea id="noteEditText" maxlength="140" placeholder="140 characters max…"></textarea>
+  <div class="np-count"><span id="noteEditCount">0</span>/140</div>
+  <div class="rowbtns"><button class="btn" id="noteEditSave">Save</button><button class="btn danger" id="noteEditDelete">Delete</button><button class="btn" id="noteEditCancel">Cancel</button></div>
+</div>
+
+<script type="module" src="src/app.js"></script>

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Allow the DocuVerse window, store persistence and Gumroad verification.",
+  "windows": ["main"],
+  "permissions": ["core:default", "store:default", "http:default"]
+}

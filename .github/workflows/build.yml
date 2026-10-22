@@ -1,0 +1,66 @@
+name: Build DocuVerse installers
+
+# Push a tag like v1.0.0 (or press "Run workflow") and cloud Mac +
+# Windows machines compile the installers, then attach them to the
+# release on your repo's Releases page.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon .dmg (runs on Intel Macs via Rosetta 2)
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg
+          # Windows installer .exe + .msi
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The web app (index.html + main.pjs + src/) IS the frontend:
+      # stage it where tauri.conf.json expects it (frontendDist: ../dist).
+      - name: Stage the frontend into dist/
+        run: |
+          rm -rf src/tools/desktop/dist
+          mkdir -p src/tools/desktop/dist
+          cp index.html main.pjs src/tools/desktop/dist/
+          cp -r src src/tools/desktop/dist/src
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust (${{ matrix.target }})
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install desktop deps
+        working-directory: src/tools/desktop
+        run: pnpm install
+
+      - name: Generate icons from src/icon.png
+        working-directory: src/tools/desktop
+        run: pnpm dlx tauri icon ../../src/icon.png
+
+      - name: Build + attach installers to the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: src/tools/desktop
+          tauriScript: pnpm
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
