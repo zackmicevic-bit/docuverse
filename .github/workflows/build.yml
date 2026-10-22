@@ -28,7 +28,10 @@ jobs:
 
       # The web app (index.html + main.pjs + src/) IS the frontend:
       # stage it where tauri.conf.json expects it (frontendDist: ../dist).
+      # Windows runners default to PowerShell, so force bash (Git Bash ships
+      # the cp/rm/mkdir commands this step uses).
       - name: Stage the frontend into dist/
+        shell: bash
         run: |
           rm -rf src/tools/desktop/dist
           mkdir -p src/tools/desktop/dist
@@ -54,9 +57,11 @@ jobs:
         working-directory: src/tools/desktop
         run: pnpm install
 
+      # Use the repo's own installed Tauri CLI (devDependencies) — `pnpm dlx
+      # tauri` would fetch the wrong package name and fail.
       - name: Generate icons from src/icon.png
         working-directory: src/tools/desktop
-        run: pnpm dlx tauri icon ../../src/icon.png
+        run: pnpm tauri icon ../../src/icon.png
 
       - name: Build + attach installers to the release
         uses: tauri-apps/tauri-action@v0
@@ -65,4 +70,4 @@ jobs:
         with:
           projectPath: src/tools/desktop
           tauriScript: pnpm
-          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} matrix.bundles }}
